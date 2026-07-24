@@ -1,24 +1,27 @@
 package com.epam.gymcrm.service;
 
-import com.epam.gymcrm.client.TrainerWorkloadClient;
 import com.epam.gymcrm.dto.workload.ActionType;
-import com.epam.gymcrm.dto.workload.TrainerWorkloadRequest;
 import com.epam.gymcrm.entity.Trainee;
 import com.epam.gymcrm.entity.Trainer;
 import com.epam.gymcrm.entity.Training;
 import com.epam.gymcrm.entity.TrainingType;
 import com.epam.gymcrm.entity.User;
+import com.epam.gymcrm.entity.WorkloadOutboxEvent;
 import com.epam.gymcrm.exception.EntityNotFoundException;
 import com.epam.gymcrm.exception.ValidationException;
 import com.epam.gymcrm.repository.TraineeRepository;
 import com.epam.gymcrm.repository.TrainerRepository;
 import com.epam.gymcrm.repository.TrainingRepository;
 import com.epam.gymcrm.repository.TrainingTypeRepository;
+import com.epam.gymcrm.repository.WorkloadOutboxEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,7 +36,7 @@ class TrainingServiceTest {
     private TraineeRepository traineeRepository;
     private TrainerRepository trainerRepository;
     private TrainingTypeRepository trainingTypeRepository;
-    private TrainerWorkloadClient trainerWorkloadClient;
+    private WorkloadOutboxEventRepository workloadOutboxEventRepository;
 
     @BeforeEach
     void setUp() {
@@ -41,14 +44,23 @@ class TrainingServiceTest {
         traineeRepository = mock(TraineeRepository.class);
         trainerRepository = mock(TrainerRepository.class);
         trainingTypeRepository = mock(TrainingTypeRepository.class);
-        trainerWorkloadClient = mock(TrainerWorkloadClient.class);
+        workloadOutboxEventRepository =
+                mock(WorkloadOutboxEventRepository.class);
 
         trainingService = new TrainingService();
         trainingService.setTrainingRepository(trainingRepository);
         trainingService.setTraineeRepository(traineeRepository);
         trainingService.setTrainerRepository(trainerRepository);
         trainingService.setTrainingTypeRepository(trainingTypeRepository);
-        trainingService.setTrainerWorkloadClient(trainerWorkloadClient);
+        trainingService.setWorkloadOutboxEventRepository(
+                workloadOutboxEventRepository
+        );
+        trainingService.setClock(
+                Clock.fixed(
+                        Instant.parse("2026-07-25T00:00:00Z"),
+                        ZoneOffset.UTC
+                )
+        );
     }
 
     @Test
@@ -146,39 +158,39 @@ class TrainingServiceTest {
         verify(trainingRepository)
                 .save(any(Training.class));
 
-        ArgumentCaptor<TrainerWorkloadRequest> requestCaptor =
-                ArgumentCaptor.forClass(TrainerWorkloadRequest.class);
+        ArgumentCaptor<WorkloadOutboxEvent> requestCaptor =
+                ArgumentCaptor.forClass(WorkloadOutboxEvent.class);
 
-        verify(trainerWorkloadClient)
-                .updateWorkload(requestCaptor.capture());
+        verify(workloadOutboxEventRepository)
+                .save(requestCaptor.capture());
 
-        TrainerWorkloadRequest request = requestCaptor.getValue();
+        WorkloadOutboxEvent event = requestCaptor.getValue();
 
         assertAll(
                 () -> assertEquals(
                         "Mike.Brown",
-                        request.getTrainerUsername()
+                        event.getTrainerUsername()
                 ),
                 () -> assertEquals(
                         "Mike",
-                        request.getTrainerFirstName()
+                        event.getTrainerFirstName()
                 ),
                 () -> assertEquals(
                         "Brown",
-                        request.getTrainerLastName()
+                        event.getTrainerLastName()
                 ),
-                () -> assertTrue(request.getActive()),
+                () -> assertTrue(event.isActive()),
                 () -> assertEquals(
                         LocalDate.of(2026, 5, 10),
-                        request.getTrainingDate()
+                        event.getTrainingDate()
                 ),
                 () -> assertEquals(
                         60,
-                        request.getTrainingDuration()
+                        event.getTrainingDuration()
                 ),
                 () -> assertEquals(
                         ActionType.ADD,
-                        request.getActionType()
+                        event.getActionType()
                 )
         );
     }
@@ -206,7 +218,7 @@ class TrainingServiceTest {
         verify(trainingRepository, never())
                 .save(any());
 
-        verifyNoInteractions(trainerWorkloadClient);
+        verifyNoInteractions(workloadOutboxEventRepository);
     }
 
     @Test
@@ -247,7 +259,7 @@ class TrainingServiceTest {
         verify(trainingRepository, never())
                 .save(any());
 
-        verifyNoInteractions(trainerWorkloadClient);
+        verifyNoInteractions(workloadOutboxEventRepository);
     }
 
     @Test
@@ -269,7 +281,79 @@ class TrainingServiceTest {
                 trainingRepository
         );
 
-        verifyNoInteractions(trainerWorkloadClient);
+        verifyNoInteractions(workloadOutboxEventRepository);
+    }
+
+    @Test
+    void shouldEnqueueDeleteEventWhenTraineeTrainingIsDeleted() {
+        TrainingType fitness = new TrainingType("Fitness");
+        Trainer trainer = new Trainer(
+                new User(
+                        "Mike",
+                        "Brown",
+                        "Mike.Brown",
+                        "hashed-trainer-pass",
+                        true
+                ),
+                fitness
+        );
+        Trainee trainee = new Trainee(
+                new User(
+                        "John",
+                        "Smith",
+                        "John.Smith",
+                        "hashed-trainee-pass",
+                        true
+                ),
+                LocalDate.of(2000, 1, 1),
+                "Tbilisi"
+        );
+        Training training = new Training(
+                "Morning Training",
+                LocalDate.of(2026, 5, 10),
+                trainer,
+                trainee,
+                fitness,
+                60
+        );
+        training.setId(7L);
+
+        when(trainingRepository.findAllByTraineeUserUsername(
+                "John.Smith"
+        )).thenReturn(List.of(training));
+
+        trainingService.deleteWorkloadsForTrainee(
+                "John.Smith"
+        );
+
+        ArgumentCaptor<WorkloadOutboxEvent> eventCaptor =
+                ArgumentCaptor.forClass(
+                        WorkloadOutboxEvent.class
+                );
+
+        verify(workloadOutboxEventRepository)
+                .save(eventCaptor.capture());
+
+        WorkloadOutboxEvent event = eventCaptor.getValue();
+
+        assertAll(
+                () -> assertEquals(
+                        "training-7-DELETE",
+                        event.getEventId()
+                ),
+                () -> assertEquals(
+                        ActionType.DELETE,
+                        event.getActionType()
+                ),
+                () -> assertEquals(
+                        "Mike.Brown",
+                        event.getTrainerUsername()
+                ),
+                () -> assertEquals(
+                        60,
+                        event.getTrainingDuration()
+                )
+        );
     }
 
     @Test

@@ -31,4 +31,7 @@ public class TrainerWorkload {
 
     @Column(nullable = false)
     private boolean active;
+
+    @Version
+    private Long version;
 }

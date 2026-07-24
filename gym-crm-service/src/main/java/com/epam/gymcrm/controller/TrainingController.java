@@ -6,6 +6,7 @@ import com.epam.gymcrm.entity.TrainingType;
 import com.epam.gymcrm.facade.GymFacade;
 import com.epam.gymcrm.metrics.GymCrmMetrics;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +16,7 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import java.util.List;
 
+@Slf4j
 @Api(tags = "Trainings")
 @RestController
 @RequestMapping("/api")
@@ -43,6 +45,14 @@ public class TrainingController {
     ) {
         String trainerUsername = authentication.getName();
 
+        log.info(
+                "Operation addTraining request: trainer={}, trainee={}, date={}, duration={}",
+                trainerUsername,
+                request.getTraineeUsername(),
+                request.getTrainingDate(),
+                request.getTrainingDuration()
+        );
+
         gymFacade.addTraining(
                 trainerUsername,
                 request.getTraineeUsername(),
@@ -52,6 +62,11 @@ public class TrainingController {
         );
 
         gymCrmMetrics.incrementTrainingsCreated();
+
+        log.info(
+                "Operation addTraining response: trainer={}, status=200",
+                trainerUsername
+        );
 
         return ResponseEntity.ok().build();
     }

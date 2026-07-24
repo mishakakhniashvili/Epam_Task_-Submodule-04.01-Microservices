@@ -1,5 +1,7 @@
 package com.epam.trainerworkload.config;
 
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -9,6 +11,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
+@Slf4j
 @Configuration
 public class SecurityConfig {
 
@@ -35,8 +38,36 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/v1/workload-events"
-                        ).authenticated()
+                        ).hasAuthority("SCOPE_workload.write")
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((
+                                request,
+                                response,
+                                exception
+                        ) -> {
+                            log.warn(
+                                    "Operation failed: status=401, message=Authentication is required"
+                            );
+                            response.sendError(
+                                    HttpServletResponse.SC_UNAUTHORIZED,
+                                    "Authentication is required"
+                            );
+                        })
+                        .accessDeniedHandler((
+                                request,
+                                response,
+                                exception
+                        ) -> {
+                            log.warn(
+                                    "Operation failed: status=403, message=Required scope is missing"
+                            );
+                            response.sendError(
+                                    HttpServletResponse.SC_FORBIDDEN,
+                                    "Required scope is missing"
+                            );
+                        })
                 )
                 .oauth2ResourceServer(oauth2 ->
                         oauth2.jwt(Customizer.withDefaults())

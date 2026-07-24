@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface MonthlyWorkloadRepository extends JpaRepository<MonthlyWorkload, Long> {
@@ -15,5 +16,9 @@ public interface MonthlyWorkloadRepository extends JpaRepository<MonthlyWorkload
             TrainerWorkload trainer,
             int year,
             int month
+    );
+
+    List<MonthlyWorkload> findAllByTrainerOrderByYearAscMonthAsc(
+            TrainerWorkload trainer
     );
 }

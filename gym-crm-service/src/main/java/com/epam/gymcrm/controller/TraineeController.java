@@ -166,7 +166,17 @@ public class TraineeController {
     ) {
         String username = authentication.getName();
 
+        LOGGER.info(
+                "Operation deleteTrainee request: username={}",
+                username
+        );
+
         gymFacade.deleteTraineeByUsername(username);
+
+        LOGGER.info(
+                "Operation deleteTrainee response: username={}, status=200",
+                username
+        );
 
         return ResponseEntity.ok().build();
     }

@@ -34,5 +34,6 @@ public class MonthlyWorkload {
     @Column(nullable = false)
     private int trainingSummaryDuration;
 
-
+    @Version
+    private Long version;
 }

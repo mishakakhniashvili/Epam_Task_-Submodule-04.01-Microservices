@@ -21,6 +21,8 @@ public class TransactionIdFilter extends OncePerRequestFilter {
 
     private static final String HEADER_NAME = "X-Transaction-Id";
     private static final String MDC_KEY = "transactionId";
+    private static final int MAX_TRANSACTION_ID_LENGTH = 100;
+    private static final String VALID_TRANSACTION_ID = "[A-Za-z0-9._-]+";
 
     @Override
     protected void doFilterInternal(
@@ -28,35 +30,60 @@ public class TransactionIdFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        String transactionId = request.getHeader(HEADER_NAME);
-
-        if (transactionId == null || transactionId.isBlank()) {
-            transactionId = UUID.randomUUID().toString();
-        }
+        String transactionId = resolveTransactionId(request);
+        String endpoint = resolveEndpoint(request);
 
         long startedAt = System.currentTimeMillis();
+        String previousTransactionId = MDC.get(MDC_KEY);
 
         MDC.put(MDC_KEY, transactionId);
         response.setHeader(HEADER_NAME, transactionId);
 
         try {
             log.info(
-                    "Incoming request: method={}, uri={}",
+                    "Transaction started: method={}, endpoint={}",
                     request.getMethod(),
-                    request.getRequestURI()
+                    endpoint
             );
 
             filterChain.doFilter(request, response);
         } finally {
             log.info(
-                    "Completed request: method={}, uri={}, status={}, duration={}ms",
+                    "Transaction completed: method={}, endpoint={}, status={}, duration={}ms",
                     request.getMethod(),
-                    request.getRequestURI(),
+                    endpoint,
                     response.getStatus(),
                     System.currentTimeMillis() - startedAt
             );
 
-            MDC.remove(MDC_KEY);
+            if (previousTransactionId == null) {
+                MDC.remove(MDC_KEY);
+            } else {
+                MDC.put(MDC_KEY, previousTransactionId);
+            }
         }
+    }
+
+    private String resolveTransactionId(HttpServletRequest request) {
+        String transactionId = request.getHeader(HEADER_NAME);
+
+        if (transactionId == null
+                || transactionId.isBlank()
+                || transactionId.length() > MAX_TRANSACTION_ID_LENGTH
+                || !transactionId.matches(VALID_TRANSACTION_ID)) {
+            return UUID.randomUUID().toString();
+        }
+
+        return transactionId;
+    }
+
+    private String resolveEndpoint(HttpServletRequest request) {
+        String queryString = request.getQueryString();
+
+        if (queryString == null || queryString.isBlank()) {
+            return request.getRequestURI();
+        }
+
+        return request.getRequestURI() + "?" + queryString;
     }
 }

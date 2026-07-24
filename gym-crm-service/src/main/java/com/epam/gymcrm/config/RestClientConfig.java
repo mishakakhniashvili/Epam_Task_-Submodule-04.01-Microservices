@@ -4,24 +4,29 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+
+import java.time.Duration;
 
 @Configuration
 public class RestClientConfig {
 
     @Bean
     @LoadBalanced
-    public RestClient.Builder restClientBuilder() {
-        return RestClient.builder();
-    }
-
-    @Bean
-    public RestClient trainerWorkloadRestClient(
-            RestClient.Builder restClientBuilder,
-            @Value("${trainer-workload-service.base-url}") String baseUrl
+    public RestClient.Builder restClientBuilder(
+            @Value("${trainer-workload-service.connect-timeout}")
+            Duration connectTimeout,
+            @Value("${trainer-workload-service.read-timeout}")
+            Duration readTimeout
     ) {
-        return restClientBuilder
-                .baseUrl(baseUrl)
-                .build();
+        SimpleClientHttpRequestFactory requestFactory =
+                new SimpleClientHttpRequestFactory();
+
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
+
+        return RestClient.builder()
+                .requestFactory(requestFactory);
     }
 }

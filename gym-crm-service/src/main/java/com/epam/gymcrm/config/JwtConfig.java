@@ -9,7 +9,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.*;
 
@@ -57,12 +59,30 @@ public class JwtConfig {
         OAuth2TokenValidator<Jwt> standardValidator =
                 JwtValidators.createDefaultWithIssuer("gym-crm");
 
+        OAuth2TokenValidator<Jwt> audienceValidator =
+                token -> {
+                    if (token.getAudience().contains(
+                            "gym-crm-service"
+                    )) {
+                        return OAuth2TokenValidatorResult.success();
+                    }
+
+                    return OAuth2TokenValidatorResult.failure(
+                            new OAuth2Error(
+                                    "invalid_token",
+                                    "Required audience is missing",
+                                    null
+                            )
+                    );
+                };
+
         OAuth2TokenValidator<Jwt> revokedTokenValidator =
                 new RevokedTokenValidator(revokedTokenService);
 
         decoder.setJwtValidator(
                 new DelegatingOAuth2TokenValidator<>(
                         standardValidator,
+                        audienceValidator,
                         revokedTokenValidator
                 )
         );

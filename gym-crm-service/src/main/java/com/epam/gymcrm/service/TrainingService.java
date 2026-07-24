@@ -1,18 +1,19 @@
 package com.epam.gymcrm.service;
 
-import com.epam.gymcrm.client.TrainerWorkloadClient;
 import com.epam.gymcrm.dto.workload.ActionType;
-import com.epam.gymcrm.dto.workload.TrainerWorkloadRequest;
 import com.epam.gymcrm.entity.Trainee;
 import com.epam.gymcrm.entity.Trainer;
 import com.epam.gymcrm.entity.Training;
 import com.epam.gymcrm.entity.TrainingType;
+import com.epam.gymcrm.entity.WorkloadOutboxEvent;
 import com.epam.gymcrm.exception.EntityNotFoundException;
 import com.epam.gymcrm.exception.ValidationException;
 import com.epam.gymcrm.repository.TraineeRepository;
 import com.epam.gymcrm.repository.TrainerRepository;
 import com.epam.gymcrm.repository.TrainingRepository;
 import com.epam.gymcrm.repository.TrainingTypeRepository;
+import com.epam.gymcrm.repository.WorkloadOutboxEventRepository;
+import org.slf4j.MDC;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,9 +22,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class TrainingService {
@@ -34,7 +37,8 @@ public class TrainingService {
     private TraineeRepository traineeRepository;
     private TrainerRepository trainerRepository;
     private TrainingTypeRepository trainingTypeRepository;
-    private TrainerWorkloadClient trainerWorkloadClient;
+    private WorkloadOutboxEventRepository workloadOutboxEventRepository;
+    private Clock clock;
 
     @Autowired
     public void setTrainingRepository(TrainingRepository trainingRepository) {
@@ -57,8 +61,16 @@ public class TrainingService {
     }
 
     @Autowired
-    public void setTrainerWorkloadClient(TrainerWorkloadClient trainerWorkloadClient) {
-        this.trainerWorkloadClient = trainerWorkloadClient;
+    public void setWorkloadOutboxEventRepository(
+            WorkloadOutboxEventRepository workloadOutboxEventRepository
+    ) {
+        this.workloadOutboxEventRepository =
+                workloadOutboxEventRepository;
+    }
+
+    @Autowired
+    public void setClock(Clock clock) {
+        this.clock = clock;
     }
 
     @Transactional
@@ -119,33 +131,14 @@ public class TrainingService {
 
         Training createdTraining = create(training);
 
-        TrainerWorkloadRequest workloadRequest =
-                TrainerWorkloadRequest.builder()
-                        .eventId(
-                                "training-"
-                                        + createdTraining.getId()
-                                        + "-ADD"
-                        )
-                        .trainerUsername(
-                                trainer.getUser().getUsername()
-                        )
-                        .trainerFirstName(
-                                trainer.getUser().getFirstName()
-                        )
-                        .trainerLastName(
-                                trainer.getUser().getLastName()
-                        )
-                        .active(trainer.getUser().isActive())
-                        .trainingDate(
-                                createdTraining.getTrainingDate()
-                        )
-                        .trainingDuration(
-                                createdTraining.getTrainingDuration()
-                        )
-                        .actionType(ActionType.ADD)
-                        .build();
-
-        trainerWorkloadClient.updateWorkload(workloadRequest);
+        workloadOutboxEventRepository.save(
+                WorkloadOutboxEvent.fromTraining(
+                        createdTraining,
+                        ActionType.ADD,
+                        currentTransactionId(),
+                        clock.instant()
+                )
+        );
 
         return createdTraining;
     }
@@ -234,39 +227,30 @@ public class TrainingService {
     }
 
 
-    @Transactional(readOnly = true)
+    @Transactional
     public void deleteWorkloadsForTrainee(String traineeUsername) {
         List<Training> trainings =
                 trainingRepository.findAllByTraineeUserUsername(traineeUsername);
 
         for (Training training : trainings) {
-            Trainer trainer = training.getTrainer();
-
-            TrainerWorkloadRequest request =
-                    TrainerWorkloadRequest.builder()
-                            .eventId(
-                                    "training-"
-                                            + training.getId()
-                                            + "-DELETE"
-                            )
-                            .trainerUsername(
-                                    trainer.getUser().getUsername()
-                            )
-                            .trainerFirstName(
-                                    trainer.getUser().getFirstName()
-                            )
-                            .trainerLastName(
-                                    trainer.getUser().getLastName()
-                            )
-                            .active(trainer.getUser().isActive())
-                            .trainingDate(training.getTrainingDate())
-                            .trainingDuration(
-                                    training.getTrainingDuration()
-                            )
-                            .actionType(ActionType.DELETE)
-                            .build();
-
-            trainerWorkloadClient.updateWorkload(request);
+            workloadOutboxEventRepository.save(
+                    WorkloadOutboxEvent.fromTraining(
+                            training,
+                            ActionType.DELETE,
+                            currentTransactionId(),
+                            clock.instant()
+                    )
+            );
         }
+    }
+
+    private String currentTransactionId() {
+        String transactionId = MDC.get("transactionId");
+
+        if (transactionId == null || transactionId.isBlank()) {
+            return UUID.randomUUID().toString();
+        }
+
+        return transactionId;
     }
 }

@@ -1,5 +1,8 @@
 package com.epam.trainerworkload.controller;
 
+import com.epam.trainerworkload.dto.MonthWorkloadResponse;
+import com.epam.trainerworkload.dto.TrainerWorkloadResponse;
+import com.epam.trainerworkload.dto.YearWorkloadResponse;
 import com.epam.trainerworkload.exception.GlobalExceptionHandler;
 import com.epam.trainerworkload.service.TrainerWorkloadService;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,10 +14,16 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.List;
+
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
@@ -151,10 +160,9 @@ class TrainerWorkloadControllerTest {
     }
 
     @Test
-    void shouldReturnBadRequestWhenEventIdIsBlank() throws Exception {
+    void shouldAcceptPdfContractWithoutEventId() throws Exception {
         String requestBody = """
                 {
-                  "eventId": "",
                   "trainerUsername": "john.smith",
                   "trainerFirstName": "John",
                   "trainerLastName": "Smith",
@@ -168,8 +176,51 @@ class TrainerWorkloadControllerTest {
         mockMvc.perform(post("/api/v1/workload-events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
 
-        verify(trainerWorkloadService, never()).updateWorkload(any());
+        verify(trainerWorkloadService).updateWorkload(any());
+    }
+
+    @Test
+    void shouldReturnNestedTrainerWorkloadModel() throws Exception {
+        when(trainerWorkloadService.getTrainerWorkload(
+                eq("john.smith"),
+                eq(2026),
+                eq(7)
+        )).thenReturn(
+                new TrainerWorkloadResponse(
+                        "john.smith",
+                        "John",
+                        "Smith",
+                        true,
+                        List.of(
+                                new YearWorkloadResponse(
+                                        2026,
+                                        List.of(
+                                                new MonthWorkloadResponse(
+                                                        7,
+                                                        90
+                                                )
+                                        )
+                                )
+                        )
+                )
+        );
+
+        mockMvc.perform(get(
+                        "/api/v1/trainers/john.smith/workload"
+                )
+                        .param("year", "2026")
+                        .param("month", "7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.trainerUsername"
+                ).value("john.smith"))
+                .andExpect(jsonPath(
+                        "$.years[0].year"
+                ).value(2026))
+                .andExpect(jsonPath(
+                        "$.years[0].months[0].trainingSummaryDuration"
+                ).value(90));
     }
 }

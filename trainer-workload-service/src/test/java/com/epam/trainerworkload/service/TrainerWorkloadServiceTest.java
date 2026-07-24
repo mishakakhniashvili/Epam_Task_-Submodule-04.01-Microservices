@@ -33,11 +33,11 @@ class TrainerWorkloadServiceTest {
     @Mock
     private ProcessedWorkloadEventRepository processedWorkloadEventRepository;
 
-    private TrainerWorkloadService trainerWorkloadService;
+    private TrainerWorkloadTransactionExecutor transactionExecutor;
 
     @BeforeEach
     void setUp() {
-        trainerWorkloadService = new TrainerWorkloadService(
+        transactionExecutor = new TrainerWorkloadTransactionExecutor(
                 trainerWorkloadRepository,
                 monthlyWorkloadRepository,
                 processedWorkloadEventRepository
@@ -65,7 +65,7 @@ class TrainerWorkloadServiceTest {
         when(monthlyWorkloadRepository.save(any(MonthlyWorkload.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        trainerWorkloadService.updateWorkload(request);
+        transactionExecutor.process(request, "event-1");
 
         verify(trainerWorkloadRepository).save(
                 argThat(trainer ->
@@ -104,7 +104,7 @@ class TrainerWorkloadServiceTest {
                 trainer, 2026, 7
         )).thenReturn(Optional.of(monthlyWorkload));
 
-        trainerWorkloadService.updateWorkload(request);
+        transactionExecutor.process(request, "event-1");
 
         assertEquals(90, monthlyWorkload.getTrainingSummaryDuration());
         assertEquals("John", trainer.getFirstName());
@@ -134,7 +134,7 @@ class TrainerWorkloadServiceTest {
                 trainer, 2026, 7
         )).thenReturn(Optional.of(monthlyWorkload));
 
-        trainerWorkloadService.updateWorkload(request);
+        transactionExecutor.process(request, "event-1");
 
         assertEquals(60, monthlyWorkload.getTrainingSummaryDuration());
     }
@@ -158,7 +158,7 @@ class TrainerWorkloadServiceTest {
                 trainer, 2026, 7
         )).thenReturn(Optional.of(monthlyWorkload));
 
-        trainerWorkloadService.updateWorkload(request);
+        transactionExecutor.process(request, "event-1");
 
         assertEquals(0, monthlyWorkload.getTrainingSummaryDuration());
     }
@@ -184,7 +184,7 @@ class TrainerWorkloadServiceTest {
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> trainerWorkloadService.updateWorkload(request)
+                () -> transactionExecutor.process(request, "event-1")
         );
 
         assertEquals(
@@ -208,7 +208,7 @@ class TrainerWorkloadServiceTest {
 
         assertThrows(
                 TrainerWorkloadNotFoundException.class,
-                () -> trainerWorkloadService.updateWorkload(request)
+                () -> transactionExecutor.process(request, "event-1")
         );
 
         verifyNoInteractions(monthlyWorkloadRepository);
@@ -233,7 +233,7 @@ class TrainerWorkloadServiceTest {
 
         assertThrows(
                 MonthlyWorkloadNotFoundException.class,
-                () -> trainerWorkloadService.updateWorkload(request)
+                () -> transactionExecutor.process(request, "event-1")
         );
     }
 
@@ -242,11 +242,10 @@ class TrainerWorkloadServiceTest {
         TrainerWorkloadRequest request =
                 mock(TrainerWorkloadRequest.class);
 
-        when(request.getEventId()).thenReturn("event-1");
         when(processedWorkloadEventRepository.existsById("event-1"))
                 .thenReturn(true);
 
-        trainerWorkloadService.updateWorkload(request);
+        transactionExecutor.process(request, "event-1");
 
         verify(processedWorkloadEventRepository)
                 .existsById("event-1");
@@ -275,8 +274,6 @@ class TrainerWorkloadServiceTest {
         lenient().when(request.getTrainingDate()).thenReturn(date);
         lenient().when(request.getTrainingDuration()).thenReturn(duration);
         when(request.getActionType()).thenReturn(actionType);
-        when(request.getEventId()).thenReturn("event-1");
-
         return request;
     }
 

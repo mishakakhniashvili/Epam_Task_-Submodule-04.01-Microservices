@@ -1,6 +1,7 @@
 package com.epam.gymcrm.config;
 
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +27,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -91,8 +93,25 @@ public class SecurityConfig {
 
         http.exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint((request, response, exception) ->
-                        response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
-                )
+                {
+                    log.warn(
+                            "Operation failed: status=401, message=Authentication is required"
+                    );
+                    response.sendError(
+                            HttpServletResponse.SC_UNAUTHORIZED,
+                            "Authentication is required"
+                    );
+                })
+                .accessDeniedHandler((request, response, exception) ->
+                {
+                    log.warn(
+                            "Operation failed: status=403, message=Access is denied"
+                    );
+                    response.sendError(
+                            HttpServletResponse.SC_FORBIDDEN,
+                            "Access is denied"
+                    );
+                })
         );
 
         http.oauth2ResourceServer(oauth2 ->
