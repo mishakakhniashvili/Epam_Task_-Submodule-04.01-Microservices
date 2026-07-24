@@ -331,7 +331,7 @@ class TrainerControllerTest {
         TrainerTrainingResponse trainingResponse =
                 new TrainerTrainingResponse(
                         "Morning Training",
-                        "2026-05-10",
+                        LocalDate.of(2026,5,10),
                         "Fitness",
                         60,
                         "John Smith"

@@ -13,7 +13,7 @@ public class TrainingMapper {
         String trainerName = trainerUser.getFirstName() + " " + trainerUser.getLastName();
         return new TraineeTrainingResponse(
                 training.getTrainingName(),
-                training.getTrainingDate().toString(),
+                training.getTrainingDate(),
                 training.getTrainingType().getTrainingTypeName(),
                 training.getTrainingDuration(),
                 trainerName
@@ -24,7 +24,7 @@ public class TrainingMapper {
         String traineeName = traineeUser.getFirstName() + " " + traineeUser.getLastName();
         return new TrainerTrainingResponse(
                 training.getTrainingName(),
-                training.getTrainingDate().toString(),
+                training.getTrainingDate(),
                 training.getTrainingType().getTrainingTypeName(),
                 training.getTrainingDuration(),
                 traineeName

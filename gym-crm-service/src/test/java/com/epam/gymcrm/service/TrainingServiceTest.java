@@ -1,5 +1,8 @@
 package com.epam.gymcrm.service;
 
+import com.epam.gymcrm.client.TrainerWorkloadClient;
+import com.epam.gymcrm.dto.workload.ActionType;
+import com.epam.gymcrm.dto.workload.TrainerWorkloadRequest;
 import com.epam.gymcrm.entity.Trainee;
 import com.epam.gymcrm.entity.Trainer;
 import com.epam.gymcrm.entity.Training;
@@ -13,6 +16,7 @@ import com.epam.gymcrm.repository.TrainingRepository;
 import com.epam.gymcrm.repository.TrainingTypeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -29,6 +33,7 @@ class TrainingServiceTest {
     private TraineeRepository traineeRepository;
     private TrainerRepository trainerRepository;
     private TrainingTypeRepository trainingTypeRepository;
+    private TrainerWorkloadClient trainerWorkloadClient;
 
     @BeforeEach
     void setUp() {
@@ -36,14 +41,14 @@ class TrainingServiceTest {
         traineeRepository = mock(TraineeRepository.class);
         trainerRepository = mock(TrainerRepository.class);
         trainingTypeRepository = mock(TrainingTypeRepository.class);
+        trainerWorkloadClient = mock(TrainerWorkloadClient.class);
 
         trainingService = new TrainingService();
         trainingService.setTrainingRepository(trainingRepository);
         trainingService.setTraineeRepository(traineeRepository);
         trainingService.setTrainerRepository(trainerRepository);
-        trainingService.setTrainingTypeRepository(
-                trainingTypeRepository
-        );
+        trainingService.setTrainingTypeRepository(trainingTypeRepository);
+        trainingService.setTrainerWorkloadClient(trainerWorkloadClient);
     }
 
     @Test
@@ -140,6 +145,42 @@ class TrainingServiceTest {
 
         verify(trainingRepository)
                 .save(any(Training.class));
+
+        ArgumentCaptor<TrainerWorkloadRequest> requestCaptor =
+                ArgumentCaptor.forClass(TrainerWorkloadRequest.class);
+
+        verify(trainerWorkloadClient)
+                .updateWorkload(requestCaptor.capture());
+
+        TrainerWorkloadRequest request = requestCaptor.getValue();
+
+        assertAll(
+                () -> assertEquals(
+                        "Mike.Brown",
+                        request.getTrainerUsername()
+                ),
+                () -> assertEquals(
+                        "Mike",
+                        request.getTrainerFirstName()
+                ),
+                () -> assertEquals(
+                        "Brown",
+                        request.getTrainerLastName()
+                ),
+                () -> assertTrue(request.getActive()),
+                () -> assertEquals(
+                        LocalDate.of(2026, 5, 10),
+                        request.getTrainingDate()
+                ),
+                () -> assertEquals(
+                        60,
+                        request.getTrainingDuration()
+                ),
+                () -> assertEquals(
+                        ActionType.ADD,
+                        request.getActionType()
+                )
+        );
     }
 
     @Test
@@ -164,6 +205,8 @@ class TrainingServiceTest {
 
         verify(trainingRepository, never())
                 .save(any());
+
+        verifyNoInteractions(trainerWorkloadClient);
     }
 
     @Test
@@ -203,6 +246,8 @@ class TrainingServiceTest {
 
         verify(trainingRepository, never())
                 .save(any());
+
+        verifyNoInteractions(trainerWorkloadClient);
     }
 
     @Test
@@ -223,6 +268,8 @@ class TrainingServiceTest {
                 traineeRepository,
                 trainingRepository
         );
+
+        verifyNoInteractions(trainerWorkloadClient);
     }
 
     @Test

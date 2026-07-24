@@ -15,10 +15,22 @@ public interface TrainingRepository extends JpaRepository<Training, Long> {
             select training
             from Training training
             where training.trainee.user.username = :traineeUsername
-              and (:fromDate is null or training.trainingDate >= :fromDate)
-              and (:toDate is null or training.trainingDate <= :toDate)
-              and (:trainerUsername is null or training.trainer.user.username = :trainerUsername)
-              and (:trainingTypeName is null or training.trainingType.trainingTypeName = :trainingTypeName)
+              and training.trainingDate >= coalesce(
+                      :fromDate,
+                      training.trainingDate
+                  )
+              and training.trainingDate <= coalesce(
+                      :toDate,
+                      training.trainingDate
+                  )
+              and training.trainer.user.username = coalesce(
+                      :trainerUsername,
+                      training.trainer.user.username
+                  )
+              and training.trainingType.trainingTypeName = coalesce(
+                      :trainingTypeName,
+                      training.trainingType.trainingTypeName
+                  )
             """)
     @EntityGraph(attributePaths = {
             "trainer",
@@ -39,9 +51,18 @@ public interface TrainingRepository extends JpaRepository<Training, Long> {
             select training
             from Training training
             where training.trainer.user.username = :trainerUsername
-              and (:fromDate is null or training.trainingDate >= :fromDate)
-              and (:toDate is null or training.trainingDate <= :toDate)
-              and (:traineeUsername is null or training.trainee.user.username = :traineeUsername)
+              and training.trainingDate >= coalesce(
+                      :fromDate,
+                      training.trainingDate
+                  )
+              and training.trainingDate <= coalesce(
+                      :toDate,
+                      training.trainingDate
+                  )
+              and training.trainee.user.username = coalesce(
+                      :traineeUsername,
+                      training.trainee.user.username
+                  )
             """)
     @EntityGraph(attributePaths = {
             "trainer",
@@ -55,5 +76,9 @@ public interface TrainingRepository extends JpaRepository<Training, Long> {
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate,
             @Param("traineeUsername") String traineeUsername
+    );
+
+    List<Training> findAllByTraineeUserUsername(
+            String traineeUsername
     );
 }

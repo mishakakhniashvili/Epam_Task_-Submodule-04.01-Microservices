@@ -14,7 +14,9 @@
     <modules>
         <module>gym-crm-service</module>
         <module>trainer-workload-service</module>
+        <module>discovery-service</module>
     </modules>
+
 
     <packaging>pom</packaging>
 </project>

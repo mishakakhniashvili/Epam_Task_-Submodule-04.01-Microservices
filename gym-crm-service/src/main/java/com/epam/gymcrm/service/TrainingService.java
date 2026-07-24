@@ -1,5 +1,8 @@
 package com.epam.gymcrm.service;
 
+import com.epam.gymcrm.client.TrainerWorkloadClient;
+import com.epam.gymcrm.dto.workload.ActionType;
+import com.epam.gymcrm.dto.workload.TrainerWorkloadRequest;
 import com.epam.gymcrm.entity.Trainee;
 import com.epam.gymcrm.entity.Trainer;
 import com.epam.gymcrm.entity.Training;
@@ -31,6 +34,7 @@ public class TrainingService {
     private TraineeRepository traineeRepository;
     private TrainerRepository trainerRepository;
     private TrainingTypeRepository trainingTypeRepository;
+    private TrainerWorkloadClient trainerWorkloadClient;
 
     @Autowired
     public void setTrainingRepository(TrainingRepository trainingRepository) {
@@ -50,6 +54,11 @@ public class TrainingService {
     @Autowired
     public void setTrainingTypeRepository(TrainingTypeRepository trainingTypeRepository) {
         this.trainingTypeRepository = trainingTypeRepository;
+    }
+
+    @Autowired
+    public void setTrainerWorkloadClient(TrainerWorkloadClient trainerWorkloadClient) {
+        this.trainerWorkloadClient = trainerWorkloadClient;
     }
 
     @Transactional
@@ -108,7 +117,37 @@ public class TrainingService {
                 trainingDuration
         );
 
-        return create(training);
+        Training createdTraining = create(training);
+
+        TrainerWorkloadRequest workloadRequest =
+                TrainerWorkloadRequest.builder()
+                        .eventId(
+                                "training-"
+                                        + createdTraining.getId()
+                                        + "-ADD"
+                        )
+                        .trainerUsername(
+                                trainer.getUser().getUsername()
+                        )
+                        .trainerFirstName(
+                                trainer.getUser().getFirstName()
+                        )
+                        .trainerLastName(
+                                trainer.getUser().getLastName()
+                        )
+                        .active(trainer.getUser().isActive())
+                        .trainingDate(
+                                createdTraining.getTrainingDate()
+                        )
+                        .trainingDuration(
+                                createdTraining.getTrainingDuration()
+                        )
+                        .actionType(ActionType.ADD)
+                        .build();
+
+        trainerWorkloadClient.updateWorkload(workloadRequest);
+
+        return createdTraining;
     }
 
     public Optional<Training> findById(Long id) {
@@ -192,5 +231,42 @@ public class TrainingService {
                 toDate,
                 traineeUsername
         );
+    }
+
+
+    @Transactional(readOnly = true)
+    public void deleteWorkloadsForTrainee(String traineeUsername) {
+        List<Training> trainings =
+                trainingRepository.findAllByTraineeUserUsername(traineeUsername);
+
+        for (Training training : trainings) {
+            Trainer trainer = training.getTrainer();
+
+            TrainerWorkloadRequest request =
+                    TrainerWorkloadRequest.builder()
+                            .eventId(
+                                    "training-"
+                                            + training.getId()
+                                            + "-DELETE"
+                            )
+                            .trainerUsername(
+                                    trainer.getUser().getUsername()
+                            )
+                            .trainerFirstName(
+                                    trainer.getUser().getFirstName()
+                            )
+                            .trainerLastName(
+                                    trainer.getUser().getLastName()
+                            )
+                            .active(trainer.getUser().isActive())
+                            .trainingDate(training.getTrainingDate())
+                            .trainingDuration(
+                                    training.getTrainingDuration()
+                            )
+                            .actionType(ActionType.DELETE)
+                            .build();
+
+            trainerWorkloadClient.updateWorkload(request);
+        }
     }
 }

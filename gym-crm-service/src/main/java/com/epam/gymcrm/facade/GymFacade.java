@@ -9,6 +9,7 @@ import com.epam.gymcrm.service.TraineeService;
 import com.epam.gymcrm.service.TrainerService;
 import com.epam.gymcrm.service.TrainingService;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -116,11 +117,11 @@ public class GymFacade {
                 active
         );
     }
-
+    @Transactional
     public void deleteTraineeByUsername(String username) {
+        trainingService.deleteWorkloadsForTrainee(username);
         traineeService.deleteByUsername(username);
     }
-
     public void activateTrainee(String username) {
         traineeService.activate(username);
     }
@@ -179,4 +180,6 @@ public class GymFacade {
                 trainingDuration
         );
     }
+
+
 }
