@@ -1,0 +1,8 @@
+# Use this workspace to collaborate
+workspace:
+  id: b0c6c180-70e8-4f50-8f4e-6fba4e9afb79
+
+localResources:
+  specs:
+    - ../gym-crm-service/target/classes/static/openapi.yaml
+    - ../gym-crm-service/src/main/resources/static/openapi.yaml
